@@ -46,10 +46,18 @@ export function storeScope(env: Record<string, string | undefined>): "site" | "d
 }
 
 class BlobsKV implements KV {
-  private store =
-    storeScope(process.env) === "deploy"
+  /**
+   * A new connection for every operation. Netlify gives each request a
+   * short-lived access token, and a store object keeps the token it was made
+   * with. Keeping one store for the life of a warm server meant every request
+   * failed with "Token expired" once that first token ran out, taking the
+   * whole site down until a redeploy. Making a store is cheap (no network).
+   */
+  private get store() {
+    return storeScope(process.env) === "deploy"
       ? getDeployStore({ name: STORE_NAME, consistency: "strong" })
       : getStore({ name: STORE_NAME, consistency: "strong" });
+  }
 
   async get<T>(key: string): Promise<Entry<T> | null> {
     const entry = await this.store.getWithMetadata(key, { type: "json" });
@@ -58,11 +66,12 @@ class BlobsKV implements KV {
   }
 
   async set(key: string, data: unknown, options: WriteOptions = {}): Promise<boolean> {
+    const store = this.store;
     const result = options.onlyIfMatch
-      ? await this.store.setJSON(key, data, { onlyIfMatch: options.onlyIfMatch })
+      ? await store.setJSON(key, data, { onlyIfMatch: options.onlyIfMatch })
       : options.onlyIfNew
-        ? await this.store.setJSON(key, data, { onlyIfNew: true })
-        : await this.store.setJSON(key, data);
+        ? await store.setJSON(key, data, { onlyIfNew: true })
+        : await store.setJSON(key, data);
     return result.modified;
   }
 
