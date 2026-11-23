@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeInstagram, normalizeLinkedIn, normalizeWebsite, normalizeYouTube } from "./source-urls";
+import { detectSource, normalizeFacebook, normalizeInstagram, normalizeLinkedIn, normalizeWebsite, normalizeYouTube, resolveSource } from "./source-urls";
 
 describe("normalizeWebsite", () => {
   it("accepts plain domains and full URLs", () => {
@@ -43,5 +43,47 @@ describe("normalizeInstagram", () => {
     expect(normalizeInstagram("instagram.com/hubspot?igsh=abc")).toBe("https://www.instagram.com/hubspot/");
     expect(() => normalizeInstagram("https://www.instagram.com/p/Cxyz/")).toThrow(/post/);
     expect(() => normalizeInstagram("https://example.com/hubspot")).toThrow();
+  });
+});
+
+describe("normalizeFacebook", () => {
+  it("canonicalizes usernames", () => {
+    expect(normalizeFacebook("facebook.com/bob.caine.1650/")).toBe("https://www.facebook.com/bob.caine.1650");
+    expect(normalizeFacebook("https://m.facebook.com/Some.Name")).toBe("https://www.facebook.com/Some.Name");
+    expect(normalizeFacebook("fb.com/someone")).toBe("https://www.facebook.com/someone");
+  });
+  it("keeps profile.php ids", () => {
+    expect(normalizeFacebook("https://www.facebook.com/profile.php?id=1000123&sk=about")).toBe("https://www.facebook.com/profile.php?id=1000123");
+  });
+  it("refuses non-profile links", () => {
+    for (const bad of ["facebook.com/share/abc123", "facebook.com/groups/123", "facebook.com/events/9", "facebook.com/reel/111", "facebook.com/photo/?fbid=1", "facebook.com/someone/posts/pfbid0x", "facebook.com/watch"]) {
+      expect(() => normalizeFacebook(bad), bad).toThrow(/profile link/);
+    }
+  });
+});
+
+describe("detectSource", () => {
+  it("routes by host", () => {
+    expect(detectSource("linkedin.com/in/jane-doe").type).toBe("linkedin");
+    expect(detectSource("youtube.com/@chan").type).toBe("youtube");
+    expect(detectSource("instagram.com/someone").type).toBe("instagram");
+    expect(detectSource("facebook.com/someone")).toEqual({ type: "facebook", url: "https://www.facebook.com/someone" });
+    expect(detectSource("bobcaine.com")).toEqual({ type: "website", url: "https://bobcaine.com" });
+  });
+  it("asks for a full link for a bare handle", () => {
+    expect(() => detectSource("@someone")).toThrow(/full link/);
+  });
+  it("passes through the per-site errors", () => {
+    expect(() => detectSource("linkedin.com/company/acme")).toThrow(/company page/);
+  });
+});
+
+describe("resolveSource", () => {
+  it("with a fixed type ignores detection", () => {
+    expect(resolveSource("website", "bobcaine.com")).toEqual({ type: "website", url: "https://bobcaine.com" });
+    expect(() => resolveSource("website", "facebook.com/x")).toThrow(/social profile/);
+  });
+  it("with any detects", () => {
+    expect(resolveSource("any", "facebook.com/someone").type).toBe("facebook");
   });
 });

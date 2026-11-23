@@ -36,6 +36,17 @@ describe("parseSettings", () => {
     if (!result.ok) expect(result.errors.join(" ")).toMatch(/cta is missing/);
   });
 
+  it("accepts facebook and any with new defaults", () => {
+    for (const type of ["facebook", "any"]) {
+      const parsed = parseSettings(example.replace("type: linkedin", `type: ${type}`));
+      if (!parsed.ok) throw new Error(parsed.errors.join("; "));
+      expect(parsed.settings.source.type).toBe(type);
+      expect(parsed.settings.source.facebookPosts).toBe(20);
+      expect(parsed.settings.source.alsoReadLinkedIn).toBe(true);
+      expect(parsed.settings.source.alsoReadFacebook).toBe(true);
+    }
+  });
+
   it("names unknown settings, bad enums, bad colors and bad links", () => {
     const broken = example
       .replace("type: linkedin", "type: tiktok")
@@ -46,7 +57,7 @@ describe("parseSettings", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     const all = result.errors.join("\n");
-    expect(all).toMatch(/source > type must be one of: website, linkedin, youtube, instagram/);
+    expect(all).toMatch(/source > type must be one of: website, linkedin, youtube, instagram, facebook, any/);
     expect(all).toMatch(/branding > primaryColor must be a color code/);
     expect(all).toMatch(/cta > url must be a full link/);
     expect(all).toMatch(/doesn't know: colour/);
