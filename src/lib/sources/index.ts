@@ -183,8 +183,13 @@ export async function gatherEvidence(settings: Settings, type: SourceType, url: 
 
   evidence.platformsRead = platforms;
   if (platforms.length) evidence.facts.push(`Platforms read for this report: ${platforms.map((p) => p.platform).join(", ")} (${platforms.length})`);
-  // We only follow posted links, so one platform may mean others exist but aren't linked.
-  if (platforms.length === 1) evidence.facts.push("Only one platform was found linked. They may be on others that aren't linked from this profile.");
+  if (type === "facebook") {
+    // The Facebook tool returns posts, not the links in the profile's intro, so "only one platform" would be wrong.
+    evidence.facts.push("Started from Facebook. The Facebook reader sees public posts only, not the website, YouTube or other accounts listed on the profile, so those could not be checked.");
+  } else if (platforms.length === 1) {
+    // We only follow posted links, so one platform may mean others exist but aren't linked.
+    evidence.facts.push("Only one platform was found linked. They may be on others that aren't linked from this profile.");
+  }
 
   evidence.strength = gradeStrength(evidence);
   return evidence;

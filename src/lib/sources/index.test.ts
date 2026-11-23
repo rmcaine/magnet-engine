@@ -95,11 +95,10 @@ describe("platforms read", () => {
     expect(out.platformsRead.map((p) => p.platform)).toEqual(["Website"]);
   });
 
-  it("says when only one platform was found", async () => {
+  it("lists the single Facebook read with its post count", async () => {
     readFacebook.mockResolvedValueOnce(ev("facebook", "https://www.facebook.com/pat", { blocks: [{ label: "posts", text: "- a\n- b" }] }));
     const out = await gatherEvidence(settings(), "facebook", "https://www.facebook.com/pat");
     expect(out.platformsRead).toEqual([{ platform: "Facebook", detail: "2 public posts" }]);
-    expect(out.facts).toContain("Only one platform was found linked. They may be on others that aren't linked from this profile.");
   });
 });
 
@@ -160,5 +159,23 @@ describe("review fixes", () => {
     expect(kept).toBeLessThan(10);
     expect(fbBlock!.text.endsWith("x")).toBe(true);
     expect(out.platformsRead.find((p) => p.platform === "Facebook")?.detail).toBe(`${kept} public posts`);
+  });
+});
+
+describe("facebook start can't see profile links", () => {
+  it("says the profile's own links weren't checked, instead of 'only one platform'", async () => {
+    readFacebook.mockResolvedValueOnce(ev("facebook", "https://www.facebook.com/pat", { blocks: [{ label: "posts", text: "- a" }] }));
+    const out = await gatherEvidence(settings(), "facebook", "https://www.facebook.com/pat");
+    expect(out.facts).toContain(
+      "Started from Facebook. The Facebook reader sees public posts only, not the website, YouTube or other accounts listed on the profile, so those could not be checked.",
+    );
+    expect(out.facts.some((f) => f.startsWith("Only one platform was found linked"))).toBe(false);
+  });
+
+  it("a non-Facebook start with one platform keeps the 'only one platform' note", async () => {
+    readWebsite.mockResolvedValue(ev("website", "https://jane.com"));
+    const out = await gatherEvidence(settings(), "website", "https://jane.com");
+    expect(out.facts.some((f) => f.startsWith("Only one platform was found linked"))).toBe(true);
+    expect(out.facts.some((f) => f.startsWith("Started from Facebook"))).toBe(false);
   });
 });
