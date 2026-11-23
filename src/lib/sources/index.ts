@@ -28,6 +28,28 @@ function pick(channels: string[], test: RegExp): string | null {
   return channels.find((c) => test.test(c)) ?? null;
 }
 
+/** The first link that the normalizer accepts, with its canonical form. */
+function firstValid(channels: string[], fn: (raw: string) => string): { raw: string; url: string } | null {
+  for (const raw of channels) {
+    const url = tryNormalize(fn, raw);
+    if (url) return { raw, url };
+  }
+  return null;
+}
+
+/** Text cut to whole lines under the limit, so no post is half-shown. */
+function wholeLines(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const out: string[] = [];
+  let size = 0;
+  for (const line of text.split("\n")) {
+    if (size + line.length + 1 > max) break;
+    out.push(line);
+    size += line.length + 1;
+  }
+  return out.join("\n");
+}
+
 /**
  * Reads the main source, then follows what it links to: the website (free),
  * a YouTube channel (free), a public Instagram profile (under a cent), a
@@ -110,16 +132,22 @@ export async function gatherEvidence(settings: Settings, type: SourceType, url: 
   // Links we read below, so they aren't also listed as "named, not read".
   const followed = new Set<string>();
 
+  // Paid follows are on by default only in any-link mode, so magnets saved before this keep their cost.
+  const followLinkedIn = settings.source.alsoReadLinkedIn ?? settings.source.type === "any";
+  const followFacebook = settings.source.alsoReadFacebook ?? settings.source.type === "any";
+
   // 4. A personal LinkedIn profile they link to. Apify, a few cents; company pages are only named.
-  const linkedinRaw = settings.source.alsoReadLinkedIn && type !== "linkedin" ? pick([...channels], /linkedin\.com\/in\//i) : null;
-  const linkedin = tryNormalize(normalizeLinkedIn, linkedinRaw);
-  if (linkedinRaw && linkedin && linkedin.toLowerCase() !== url.toLowerCase()) {
+  const linkedinFound = followLinkedIn && type !== "linkedin" ? firstValid([...channels], normalizeLinkedIn) : null;
+  if (linkedinFound && linkedinFound.url.toLowerCase() !== url.toLowerCase()) {
+    const { raw: linkedinRaw, url: linkedin } = linkedinFound;
     try {
       const li = await readLinkedIn(linkedin, Math.min(linkedinPosts, 5));
       evidence.apifyRunIds.push(...li.apifyRunIds);
       if (li.facts.length || li.blocks.length) {
         evidence.facts.push(...li.facts.map((fact) => `Their LinkedIn: ${fact}`));
-        evidence.blocks.push(...li.blocks.slice(0, 2).map((block) => ({ label: `Their LinkedIn, ${block.label}`, text: block.text.slice(0, 3000) })));
+        // The About section plus the posts we paid for (Experience/Education/Skills sit between them).
+        const kept = [li.blocks[0], li.blocks.find((block) => /posts/i.test(block.label))].filter((block, i, all): block is NonNullable<typeof block> => Boolean(block) && all.indexOf(block) === i);
+        evidence.blocks.push(...kept.map((block) => ({ label: `Their LinkedIn, ${block.label}`, text: block.text.slice(0, 3000) })));
         followed.add(linkedinRaw);
         note(li);
       }
@@ -129,14 +157,18 @@ export async function gatherEvidence(settings: Settings, type: SourceType, url: 
   }
 
   // 5. A Facebook profile or Page they link to. Apify, public posts only.
-  const facebookRaw = settings.source.alsoReadFacebook && type !== "facebook" ? pick([...channels], /facebook\.com\//i) : null;
-  const facebook = tryNormalize(normalizeFacebook, facebookRaw);
-  if (facebookRaw && facebook && facebook.toLowerCase() !== url.toLowerCase()) {
+  // The first link that is really a profile: websites also carry pixel and share-button links.
+  const facebookFound = followFacebook && type !== "facebook" ? firstValid([...channels], normalizeFacebook) : null;
+  if (facebookFound && facebookFound.url.toLowerCase() !== url.toLowerCase()) {
+    const { raw: facebookRaw, url: facebook } = facebookFound;
     try {
       const fb = await readFacebook(facebook, Math.min(facebookPosts, 10));
       evidence.apifyRunIds.push(...fb.apifyRunIds);
-      evidence.facts.push(...fb.facts.map((fact) => `Their Facebook: ${fact}`));
-      evidence.blocks.push(...fb.blocks.slice(0, 1).map((block) => ({ label: `Their Facebook, ${block.label}`, text: block.text.slice(0, 3000) })));
+      // Keep whole posts only, so the platforms line counts exactly what the AI sees.
+      const shown = fb.blocks.slice(0, 1).map((block) => ({ label: block.label, text: wholeLines(block.text, 3000) }));
+      fb.blocks = shown;
+      evidence.facts.push(...fb.facts.filter((fact) => !/^Public Facebook posts read:/.test(fact)).map((fact) => `Their Facebook: ${fact}`));
+      evidence.blocks.push(...shown.map((block) => ({ label: `Their Facebook, ${block.label}`, text: block.text })));
       followed.add(facebookRaw);
       note(fb);
     } catch {

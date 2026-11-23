@@ -87,3 +87,19 @@ describe("resolveSource", () => {
     expect(resolveSource("any", "facebook.com/someone").type).toBe("facebook");
   });
 });
+
+describe("review fixes: facebook links that aren't profiles", () => {
+  it("refuses .php links other than profile.php", () => {
+    for (const bad of ["facebook.com/photo.php?fbid=1", "facebook.com/video.php?v=2", "facebook.com/sharer.php?u=x", "facebook.com/home.php"]) {
+      expect(() => normalizeFacebook(bad), bad).toThrow(/profile link/);
+    }
+  });
+  it("refuses pixel, sharer, plugin and namespace links", () => {
+    for (const bad of ["facebook.com/tr?id=123", "facebook.com/sharer", "facebook.com/plugins", "facebook.com/dialog", "http://www.facebook.com/2008/fbml", "facebook.com/2008"]) {
+      expect(() => normalizeFacebook(bad), bad).toThrow();
+    }
+  });
+  it("asks for a full link for an @handle with a dot", () => {
+    expect(() => detectSource("@jane.doe")).toThrow(/full link/);
+  });
+});

@@ -102,3 +102,63 @@ describe("platforms read", () => {
     expect(out.facts).toContain("Only one platform was found linked. They may be on others that aren't linked from this profile.");
   });
 });
+
+function fixedSettings(type: string, extra = ""): Settings {
+  const yaml = readFileSync(path.join(__dirname, "../../../examples/second-act-map.yaml"), "utf8").replace("type: linkedin", `type: ${type}${extra}`);
+  const parsed = parseSettings(yaml);
+  if (!parsed.ok) throw new Error(parsed.errors.join("; "));
+  return parsed.settings;
+}
+
+describe("review fixes", () => {
+  it("skips junk facebook links and follows the first real profile", async () => {
+    readWebsite.mockResolvedValue(ev("website", "https://jane.com", { linkedChannels: ["https://facebook.com/tr", "https://facebook.com/sharer", "https://facebook.com/jane.doe"] }));
+    await gatherEvidence(settings(), "website", "https://jane.com");
+    expect(readFacebook).toHaveBeenCalledTimes(1);
+    expect(readFacebook).toHaveBeenCalledWith("https://www.facebook.com/jane.doe", 10);
+  });
+
+  it("keeps the followed LinkedIn posts the report paid for", async () => {
+    readWebsite.mockResolvedValue(ev("website", "https://jane.com", { linkedChannels: ["https://linkedin.com/in/jane-doe"] }));
+    readLinkedIn.mockResolvedValueOnce(
+      ev("linkedin", "https://www.linkedin.com/in/jane-doe", {
+        facts: ["Recent public posts found: 5"],
+        blocks: [
+          { label: "About section", text: "about" },
+          { label: "Experience, most recent first", text: "exp" },
+          { label: "Education", text: "edu" },
+          { label: "Recent LinkedIn posts, newest first", text: "- p1\n- p2" },
+        ],
+      }),
+    );
+    const out = await gatherEvidence(settings(), "website", "https://jane.com");
+    const labels = out.blocks.map((b) => b.label);
+    expect(labels).toContain("Their LinkedIn, About section");
+    expect(labels).toContain("Their LinkedIn, Recent LinkedIn posts, newest first");
+  });
+
+  it("existing fixed-type magnets don't start paid follows by default", async () => {
+    readWebsite.mockResolvedValue(ev("website", "https://jane.com", { linkedChannels: ["https://linkedin.com/in/jane-doe", "https://facebook.com/jane.doe"] }));
+    await gatherEvidence(fixedSettings("website"), "website", "https://jane.com");
+    expect(readLinkedIn).not.toHaveBeenCalled();
+    expect(readFacebook).not.toHaveBeenCalled();
+  });
+
+  it("a fixed-type magnet can opt in to follows", async () => {
+    readWebsite.mockResolvedValue(ev("website", "https://jane.com", { linkedChannels: ["https://facebook.com/jane.doe"] }));
+    await gatherEvidence(fixedSettings("website", "\n  alsoReadFacebook: true"), "website", "https://jane.com");
+    expect(readFacebook).toHaveBeenCalledTimes(1);
+  });
+
+  it("the platforms line counts only the Facebook posts the AI actually saw", async () => {
+    const lines = Array.from({ length: 10 }, (_, i) => `- Nov ${i + 1}, 2026: ${"x".repeat(690)}`).join("\n");
+    readWebsite.mockResolvedValue(ev("website", "https://jane.com", { linkedChannels: ["https://facebook.com/jane.doe"] }));
+    readFacebook.mockResolvedValueOnce(ev("facebook", "https://www.facebook.com/jane.doe", { blocks: [{ label: "Recent public Facebook posts, newest first", text: lines }] }));
+    const out = await gatherEvidence(settings(), "website", "https://jane.com");
+    const fbBlock = out.blocks.find((b) => b.label.startsWith("Their Facebook"));
+    const kept = fbBlock!.text.split("\n").filter((l) => l.startsWith("- ")).length;
+    expect(kept).toBeLessThan(10);
+    expect(fbBlock!.text.endsWith("x")).toBe(true);
+    expect(out.platformsRead.find((p) => p.platform === "Facebook")?.detail).toBe(`${kept} public posts`);
+  });
+});

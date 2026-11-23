@@ -22,8 +22,8 @@ describe("readFacebook", () => {
     await expect(readFacebook("https://www.facebook.com/someone", 20)).rejects.toMatchObject({ code: "no_public_posts" });
   });
 
-  it("fails with not_found when Apify returns nothing", async () => {
+  it("fails with no_public_posts when Apify returns nothing (friends-only or wrong name)", async () => {
     runActor.mockResolvedValue({ runId: "r3", actor: "a", items: [] });
-    await expect(readFacebook("https://www.facebook.com/someone", 20)).rejects.toMatchObject({ code: "not_found" });
+    await expect(readFacebook("https://www.facebook.com/someone", 20)).rejects.toMatchObject({ code: "no_public_posts" });
   });
 });

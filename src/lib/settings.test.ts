@@ -42,8 +42,8 @@ describe("parseSettings", () => {
       if (!parsed.ok) throw new Error(parsed.errors.join("; "));
       expect(parsed.settings.source.type).toBe(type);
       expect(parsed.settings.source.facebookPosts).toBe(20);
-      expect(parsed.settings.source.alsoReadLinkedIn).toBe(true);
-      expect(parsed.settings.source.alsoReadFacebook).toBe(true);
+      expect(parsed.settings.source.alsoReadLinkedIn).toBeUndefined();
+      expect(parsed.settings.source.alsoReadFacebook).toBeUndefined();
     }
   });
 

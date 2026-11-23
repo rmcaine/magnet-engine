@@ -34,7 +34,8 @@ export async function readFacebook(profileUrl: string, maxPosts: number): Promis
   const evidence = emptyEvidence("facebook", profileUrl);
   const run = await runActor(ACTOR, { startUrls: [{ url: profileUrl }], resultsLimit: maxPosts, captionText: false });
   evidence.apifyRunIds.push(run.runId);
-  if (run.items.length === 0) throw new SourceError("not_found");
+  // Facebook returns nothing for a friends-only profile (and for a wrong name); both get the same plain message.
+  if (run.items.length === 0) throw new SourceError("no_public_posts");
   const { name, lines } = summarizeFacebookPosts(run.items);
   if (lines.length === 0) throw new SourceError("no_public_posts");
   evidence.subject.name = name;

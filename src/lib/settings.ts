@@ -65,8 +65,9 @@ export const SettingsSchema = z.strictObject({
     alsoReadWebsite: z.boolean().default(true),
     linkedinPosts: z.number().int().min(0).max(30).default(10),
     facebookPosts: z.number().int().min(0).max(50).default(20),
-    alsoReadLinkedIn: z.boolean().default(true),
-    alsoReadFacebook: z.boolean().default(true),
+    /** Unset = on only when type is "any", so older magnets keep their cost. */
+    alsoReadLinkedIn: z.boolean().optional(),
+    alsoReadFacebook: z.boolean().optional(),
   }),
   about: z.strictObject({
     owner: text(2, 200),

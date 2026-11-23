@@ -61,7 +61,7 @@ export function resolveSource(type: SettingsSourceType, raw: string): { type: So
 export function detectSource(raw: string): { type: SourceType; url: string } {
   const value = raw.trim();
   // A bare handle could live on any site, so ask for the whole link.
-  if (/^@?[\w.]+$/.test(value) && !/\.[a-z]{2,}$/i.test(value)) {
+  if ((value.startsWith("@") && !value.includes("/")) || (/^[\w.]+$/.test(value) && !/\.[a-z]{2,}$/i.test(value))) {
     throw new Error("Paste the full link to your profile, such as facebook.com/yourname or linkedin.com/in/yourname.");
   }
   const host = toUrl(value, "any").hostname.toLowerCase().replace(/\.$/, "");
@@ -73,7 +73,8 @@ export function detectSource(raw: string): { type: SourceType; url: string } {
 }
 
 const FACEBOOK_HOSTS = new Set(["facebook.com", "www.facebook.com", "m.facebook.com", "web.facebook.com", "fb.com", "www.fb.com"]);
-const FACEBOOK_RESERVED = new Set(["share", "groups", "events", "reel", "reels", "watch", "photo", "photos", "posts", "story.php", "permalink.php", "marketplace", "gaming", "pages", "hashtag", "login"]);
+// Also covers links websites carry that aren't anyone's profile: the Meta Pixel (tr), share buttons and plugins.
+const FACEBOOK_RESERVED = new Set(["share", "sharer", "plugins", "dialog", "tr", "groups", "events", "reel", "reels", "watch", "photo", "photos", "posts", "marketplace", "gaming", "pages", "hashtag", "login"]);
 const FACEBOOK_NOT_PROFILE = "That's a post, group or share link. Paste the profile link instead, such as facebook.com/yourname.";
 
 export function normalizeFacebook(raw: string): string {
@@ -87,8 +88,10 @@ export function normalizeFacebook(raw: string): string {
     if (!id || !/^\d{5,20}$/.test(id)) throw new Error(PROMPTS.facebook);
     return `https://www.facebook.com/profile.php?id=${id}`;
   }
-  if (FACEBOOK_RESERVED.has(parts[0].toLowerCase()) || parts.length > 1) throw new Error(FACEBOOK_NOT_PROFILE);
-  if (!/^[A-Za-z0-9.]{3,80}$/.test(parts[0])) throw new Error(PROMPTS.facebook);
+  // photo.php, video.php, sharer.php, home.php…: only profile.php is a profile.
+  if (FACEBOOK_RESERVED.has(parts[0].toLowerCase()) || /\.php$/i.test(parts[0]) || parts.length > 1) throw new Error(FACEBOOK_NOT_PROFILE);
+  // Facebook usernames are at least 5 characters, which also rules out junk like /2008 from page markup.
+  if (!/^[A-Za-z0-9.]{5,80}$/.test(parts[0])) throw new Error(PROMPTS.facebook);
   return `https://www.facebook.com/${parts[0]}`;
 }
 

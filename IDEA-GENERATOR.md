@@ -93,8 +93,8 @@ source:
   alsoReadWebsite: true or false (optional, default true; also reads the website linked from their profile, free)
   linkedinPosts: a number from 0 to 30 (optional, LinkedIn only; how many recent posts to read; 5 is plenty and keeps cost down)
   facebookPosts: a number from 0 to 50 (optional, default 20; how many recent public Facebook posts to read)
-  alsoReadLinkedIn: true or false (optional, default true; also reads a personal LinkedIn profile their page links to, a few cents)
-  alsoReadFacebook: true or false (optional, default true; also reads a Facebook profile their page links to, public posts only, a few cents)
+  alsoReadLinkedIn: true or false (optional; when left out it is on only for type any; also reads a personal LinkedIn profile their page links to, a few cents)
+  alsoReadFacebook: true or false (optional; when left out it is on only for type any; also reads a Facebook profile their page links to, public posts only, a few cents)
 about:
   owner: "who I am and who I help, under 200 characters (the AI reads this, prospects never see it)"
   offer: "what I sell, under 600 characters (AI only, never shown)"
