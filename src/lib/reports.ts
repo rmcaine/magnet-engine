@@ -166,9 +166,9 @@ export async function runReport(id: string, settingsOverride?: Settings): Promis
   try {
     const settings = settingsOverride ?? (await loadSettings())?.settings;
     if (!settings) throw new SourceError("not_configured");
-    if (settings.source.type !== claimed.source) throw new SourceError("source_changed");
+    if (settings.source.type !== "any" && settings.source.type !== claimed.source) throw new SourceError("source_changed");
 
-    const evidence = await gatherEvidence(settings, claimed.url, claimed.hints ?? {});
+    const evidence = await gatherEvidence(settings, claimed.source, claimed.url, claimed.hints ?? {});
     runIds = evidence.apifyRunIds;
     if (evidence.strength === "none" && claimed.notes.length === 0) throw new SourceError("nothing_public");
 

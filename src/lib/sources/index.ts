@@ -1,5 +1,6 @@
-import type { Settings } from "../settings";
+import type { Settings, SourceType } from "../settings";
 import { normalizeInstagram, normalizeWebsite, normalizeYouTube } from "../source-urls";
+import { readFacebook } from "./facebook";
 import { readInstagram } from "./instagram";
 import { readLinkedIn } from "./linkedin";
 import type { Evidence } from "./types";
@@ -32,8 +33,8 @@ function pick(channels: string[], test: RegExp): string | null {
  * names any other channels it saw. The picture of what the prospect already
  * has online is what makes a report specific instead of generic.
  */
-export async function gatherEvidence(settings: Settings, url: string, hints: EvidenceHints = {}): Promise<Evidence> {
-  const { type, alsoReadWebsite, linkedinPosts } = settings.source;
+export async function gatherEvidence(settings: Settings, type: SourceType, url: string, hints: EvidenceHints = {}): Promise<Evidence> {
+  const { alsoReadWebsite, linkedinPosts, facebookPosts } = settings.source;
   const evidence =
     type === "website"
       ? await readWebsite(url)
@@ -41,7 +42,9 @@ export async function gatherEvidence(settings: Settings, url: string, hints: Evi
         ? await readLinkedIn(url, linkedinPosts)
         : type === "youtube"
           ? await readYouTube(url)
-          : await readInstagram(url);
+          : type === "facebook"
+            ? await readFacebook(url, facebookPosts)
+            : await readInstagram(url);
 
   const channels = new Set<string>(evidence.linkedChannels);
 

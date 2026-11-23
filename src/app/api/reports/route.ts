@@ -4,8 +4,9 @@ import { markLead, saveLead } from "@/lib/leads";
 import { takeDailyAllowance, takeLeadAllowance, takeVisitorAllowance } from "@/lib/limits";
 import { createReport, findReusable, rememberUrl, reportPath, type ReportMode } from "@/lib/reports";
 import { clientIp, hashIdentity, verifyLinkSignature } from "@/lib/secrets";
+import type { SourceType } from "@/lib/settings";
 import { loadSettings } from "@/lib/settings-store";
-import { normalizeSourceUrl } from "@/lib/source-urls";
+import { resolveSource } from "@/lib/source-urls";
 import { requestOrigin, startReport } from "@/lib/trigger";
 
 export const runtime = "nodejs";
@@ -30,8 +31,9 @@ export async function POST(request: Request) {
   const { settings, savedAt } = loaded;
 
   let url: string;
+  let source: SourceType;
   try {
-    url = normalizeSourceUrl(settings.source.type, typeof body.url === "string" ? body.url : "");
+    ({ type: source, url } = resolveSource(settings.source.type, typeof body.url === "string" ? body.url : ""));
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : "Check the link and try again." }, { status: 400 });
   }
@@ -61,7 +63,7 @@ export async function POST(request: Request) {
   };
 
   // Asked for again this week: hand back the same report, at no cost.
-  const reusable = await findReusable(settings.source.type, url, savedAt);
+  const reusable = await findReusable(source, url, savedAt);
   if (reusable) {
     const path = reportPath(reusable);
     recordLead(reusable.id, path);
@@ -74,7 +76,7 @@ export async function POST(request: Request) {
   if (!daily.ok) return Response.json({ error: LIMIT_MESSAGES[daily.reason] }, { status: 429 });
 
   const mode: ReportMode = signed ? "prefilled" : settings.publicMode.optIn ? "public" : "live";
-  const record = await createReport({ mode, source: settings.source.type, url });
+  const record = await createReport({ mode, source, url });
   await rememberUrl(record, savedAt);
   await startReport(record.id, origin);
   const path = reportPath(record);
