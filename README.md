@@ -1,6 +1,6 @@
 # The Magnet Engine
 
-Your own personalized lead magnet. A prospect pastes one public link (their website, LinkedIn profile, YouTube channel or Instagram profile), and in under a minute they get a custom report written to them, with your button at the end.
+Your own personalized lead magnet. A prospect pastes one public link (their website, LinkedIn profile, YouTube channel, Instagram profile or Facebook profile), and in under a minute they get a custom report written to them, with your button at the end. With `type: any` they can paste any of these, and the engine also reads the LinkedIn and Facebook profiles that page links to. It never searches for them.
 
 You never edit code. Everything a prospect sees comes from one **settings block** that the Idea Generator writes for you and you paste into your admin page.
 
@@ -79,6 +79,8 @@ These were real runs on the engine, on Apify's Free plan and Claude Sonnet 5.5 (
 | YouTube channel | $0 (read directly) | $0.020 to $0.024 | **about $0.02** | 14 seconds |
 | LinkedIn profile + 5 posts | $0.014 | about $0.02 | **about $0.035** | 16 to 18 seconds |
 | Instagram profile (public only) | $0.0026 | about $0.017 | **about $0.02** | 16 seconds |
+| Facebook profile, 20 public posts | about $0.10 | about $0.02 | **about $0.12** | about 20 seconds (estimate) |
+| Any link, with LinkedIn and Facebook follows | up to about $0.17 | about $0.03 | **up to about $0.20** | 20 to 40 seconds (estimate) |
 
 LinkedIn and Instagram are "paid sources": Apify charges per profile ($0.004 for a LinkedIn profile plus $0.002 per post read, $0.0026 per Instagram profile). Apify's free $5 monthly credit covers roughly 350 LinkedIn reports or 1,900 Instagram reports. Reading more LinkedIn posts (`linkedinPosts`, up to 30) raises the cost by $0.002 each. Website and YouTube reads are free.
 

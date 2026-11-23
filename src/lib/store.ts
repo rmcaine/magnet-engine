@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rm, writeFile, rename } from "node:fs/promises";
 import path from "node:path";
-import { getStore } from "@netlify/blobs";
+import { getDeployStore, getStore } from "@netlify/blobs";
 
 export interface Entry<T> {
   data: T;
@@ -34,8 +34,22 @@ function onNetlify(): boolean {
   return Boolean((globalThis as { netlifyBlobsContext?: unknown }).netlifyBlobsContext || process.env.NETLIFY_BLOBS_CONTEXT);
 }
 
+/**
+ * Which Netlify Blobs store to use. Deploy previews share the live site's store
+ * unless MAGNET_STORE_SCOPE=deploy is set (in Netlify, scoped to Deploy Previews
+ * only). Then a preview gets its own empty store, so testing new settings there
+ * can't overwrite the live settings. It is a runtime variable on purpose: the
+ * Next.js app and the background build function must always pick the same store.
+ */
+export function storeScope(env: Record<string, string | undefined>): "site" | "deploy" {
+  return env.MAGNET_STORE_SCOPE?.trim().toLowerCase() === "deploy" ? "deploy" : "site";
+}
+
 class BlobsKV implements KV {
-  private store = getStore({ name: STORE_NAME, consistency: "strong" });
+  private store =
+    storeScope(process.env) === "deploy"
+      ? getDeployStore({ name: STORE_NAME, consistency: "strong" })
+      : getStore({ name: STORE_NAME, consistency: "strong" });
 
   async get<T>(key: string): Promise<Entry<T> | null> {
     const entry = await this.store.getWithMetadata(key, { type: "json" });

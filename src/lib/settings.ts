@@ -9,8 +9,12 @@
 import { parse as parseYaml, YAMLParseError } from "yaml";
 import { z } from "zod";
 
-export const SOURCE_TYPES = ["website", "linkedin", "youtube", "instagram"] as const;
+/** Concrete kinds a report can read. A report record always stores one of these. */
+export const SOURCE_TYPES = ["website", "linkedin", "youtube", "instagram", "facebook"] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
+/** What the settings may name: a concrete kind, or "any" to detect the kind from the pasted link. */
+export const SETTINGS_SOURCE_TYPES = [...SOURCE_TYPES, "any"] as const;
+export type SettingsSourceType = (typeof SETTINGS_SOURCE_TYPES)[number];
 
 export const SECTION_STYLES = ["paragraph", "list", "steps", "scores"] as const;
 export type SectionStyle = (typeof SECTION_STYLES)[number];
@@ -57,9 +61,13 @@ export const SettingsSchema = z.strictObject({
   version: z.literal(1).default(1),
   name: text(2, 60),
   source: z.strictObject({
-    type: z.enum(SOURCE_TYPES),
+    type: z.enum(SETTINGS_SOURCE_TYPES),
     alsoReadWebsite: z.boolean().default(true),
     linkedinPosts: z.number().int().min(0).max(30).default(10),
+    facebookPosts: z.number().int().min(0).max(50).default(20),
+    /** Unset = on only when type is "any", so older magnets keep their cost. */
+    alsoReadLinkedIn: z.boolean().optional(),
+    alsoReadFacebook: z.boolean().optional(),
   }),
   about: z.strictObject({
     owner: text(2, 200),
@@ -77,6 +85,8 @@ export const SettingsSchema = z.strictObject({
     loadingText: optionalText(200),
     reportHeadline: text(3, 140),
     reportIntro: optionalText(600),
+    /** Starts the code-written "what I looked at" line on each report. */
+    platformsLead: text(3, 140).default("Here's what I looked at:"),
     closing: optionalText(800),
   }),
   cta: z
@@ -271,6 +281,12 @@ function collectWarnings(settings: Settings): string[] {
   if (settings.source.type === "linkedin") {
     const perReport = 0.004 + settings.source.linkedinPosts * 0.002;
     warnings.push(`LinkedIn reads cost up to about $${perReport.toFixed(3)} each on Apify (the profile plus up to ${settings.source.linkedinPosts} posts).`);
+  }
+  if (settings.source.type === "facebook" || settings.source.type === "any") {
+    warnings.push(`Facebook reads cost about $0.005 per post on Apify (up to ${settings.source.facebookPosts} posts) and only see posts set to Public.`);
+  }
+  if (settings.source.type === "any") {
+    warnings.push("Any-link mode can read a linked LinkedIn and Facebook profile too, so one report can cost up to about $0.20.");
   }
   return warnings;
 }

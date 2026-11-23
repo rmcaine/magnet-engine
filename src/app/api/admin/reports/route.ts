@@ -1,7 +1,8 @@
 import { adminGuard } from "@/lib/admin-guard";
 import { createReport, expireIfStale, listReports, ownerErrorMessage, reportPath } from "@/lib/reports";
 import { loadSettings } from "@/lib/settings-store";
-import { normalizeSourceUrl, normalizeWebsite, normalizeYouTube } from "@/lib/source-urls";
+import { normalizeWebsite, normalizeYouTube, resolveSource } from "@/lib/source-urls";
+import type { SourceType } from "@/lib/settings";
 import { requestOrigin, startReport } from "@/lib/trigger";
 
 export const runtime = "nodejs";
@@ -82,13 +83,14 @@ export async function POST(request: Request) {
   const results: { input: string; link?: string; error?: string }[] = [];
   for (const input of links) {
     let url: string;
+    let source: SourceType;
     try {
-      url = normalizeSourceUrl(settings.source.type, input);
+      ({ type: source, url } = resolveSource(settings.source.type, input));
     } catch (err) {
       results.push({ input, error: err instanceof Error ? err.message : "Check this link." });
       continue;
     }
-    const record = await createReport({ mode: "sent", source: settings.source.type, url, notes, hints });
+    const record = await createReport({ mode: "sent", source, url, notes, hints });
     await startReport(record.id, origin);
     results.push({ input, link: `${origin}${reportPath(record)}` });
   }

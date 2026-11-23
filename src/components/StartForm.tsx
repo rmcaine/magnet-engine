@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { SourceType } from "@/lib/settings";
+import type { SettingsSourceType } from "@/lib/settings";
 import { normalizeSourceUrl } from "@/lib/source-urls";
 import { track } from "@/lib/track";
 
@@ -10,7 +10,7 @@ const INPUT =
   "mt-1.5 w-full rounded-lg border border-line bg-page px-4 py-3 text-base text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/30";
 
 export interface StartFormProps {
-  source: SourceType;
+  source: SettingsSourceType;
   inputLabel: string;
   inputPlaceholder: string;
   buttonText: string;

@@ -3,20 +3,22 @@
  * source, or throws an Error whose message is safe to show them. Used by the
  * browser (instant feedback) and the server (the real check). No Node APIs.
  */
-import type { SourceType } from "./settings";
+import type { SettingsSourceType, SourceType } from "./settings";
 
-const PROMPTS: Record<SourceType, string> = {
+const PROMPTS: Record<SettingsSourceType, string> = {
+  any: "Enter a link to your website, Facebook, LinkedIn, YouTube or Instagram profile.",
+  facebook: "Enter a Facebook profile link, such as facebook.com/yourname.",
   website: "Enter a website address, such as yourbusiness.com.",
   linkedin: "Enter a LinkedIn profile link, such as linkedin.com/in/yourname.",
   youtube: "Enter a YouTube channel link, such as youtube.com/@yourchannel.",
   instagram: "Enter an Instagram profile, such as instagram.com/yourname or @yourname.",
 };
 
-export function sourceExample(type: SourceType): string {
+export function sourceExample(type: SettingsSourceType): string {
   return PROMPTS[type];
 }
 
-function toUrl(raw: string, type: SourceType): URL {
+function toUrl(raw: string, type: SettingsSourceType): URL {
   const value = raw.trim();
   if (!value) throw new Error(PROMPTS[type]);
   if (value.length > 500) throw new Error("That link is too long. " + PROMPTS[type]);
@@ -27,23 +29,70 @@ function toUrl(raw: string, type: SourceType): URL {
   }
 }
 
-function assertPlainWeb(url: URL, type: SourceType): void {
+function assertPlainWeb(url: URL, type: SettingsSourceType): void {
   if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || url.port) {
     throw new Error(PROMPTS[type]);
   }
 }
 
-export function normalizeSourceUrl(type: SourceType, raw: string): string {
+export function normalizeSourceUrl(type: SettingsSourceType, raw: string): string {
+  return resolveSource(type, raw).url;
+}
+
+/** The kind of link and its canonical URL. A fixed type checks the link against that kind; "any" detects it. */
+export function resolveSource(type: SettingsSourceType, raw: string): { type: SourceType; url: string } {
   switch (type) {
+    case "any":
+      return detectSource(raw);
     case "website":
-      return normalizeWebsite(raw);
+      return { type, url: normalizeWebsite(raw) };
     case "linkedin":
-      return normalizeLinkedIn(raw);
+      return { type, url: normalizeLinkedIn(raw) };
     case "youtube":
-      return normalizeYouTube(raw);
+      return { type, url: normalizeYouTube(raw) };
     case "instagram":
-      return normalizeInstagram(raw);
+      return { type, url: normalizeInstagram(raw) };
+    case "facebook":
+      return { type, url: normalizeFacebook(raw) };
   }
+}
+
+/** Works out which site a pasted link belongs to, then checks it with that site's rules. */
+export function detectSource(raw: string): { type: SourceType; url: string } {
+  const value = raw.trim();
+  // A bare handle could live on any site, so ask for the whole link.
+  if ((value.startsWith("@") && !value.includes("/")) || (/^[\w.]+$/.test(value) && !/\.[a-z]{2,}$/i.test(value))) {
+    throw new Error("Paste the full link to your profile, such as facebook.com/yourname or linkedin.com/in/yourname.");
+  }
+  const host = toUrl(value, "any").hostname.toLowerCase().replace(/\.$/, "");
+  if (FACEBOOK_HOSTS.has(host)) return { type: "facebook", url: normalizeFacebook(value) };
+  if (/(^|\.)linkedin\.com$/.test(host)) return { type: "linkedin", url: normalizeLinkedIn(value) };
+  if (/(^|\.)(youtube\.com|youtu\.be)$/.test(host)) return { type: "youtube", url: normalizeYouTube(value) };
+  if (/(^|\.)instagram\.com$/.test(host)) return { type: "instagram", url: normalizeInstagram(value) };
+  return { type: "website", url: normalizeWebsite(value) };
+}
+
+const FACEBOOK_HOSTS = new Set(["facebook.com", "www.facebook.com", "m.facebook.com", "web.facebook.com", "fb.com", "www.fb.com"]);
+// Also covers links websites carry that aren't anyone's profile: the Meta Pixel (tr), share buttons and plugins.
+const FACEBOOK_RESERVED = new Set(["share", "sharer", "plugins", "dialog", "tr", "groups", "events", "reel", "reels", "watch", "photo", "photos", "posts", "marketplace", "gaming", "pages", "hashtag", "login"]);
+const FACEBOOK_NOT_PROFILE = "That's a post, group or share link. Paste the profile link instead, such as facebook.com/yourname.";
+
+export function normalizeFacebook(raw: string): string {
+  const url = toUrl(raw, "facebook");
+  assertPlainWeb(url, "facebook");
+  if (!FACEBOOK_HOSTS.has(url.hostname.toLowerCase())) throw new Error(PROMPTS.facebook);
+  const parts = url.pathname.split("/").filter(Boolean);
+  if (parts.length === 0) throw new Error(PROMPTS.facebook);
+  if (parts[0].toLowerCase() === "profile.php") {
+    const id = url.searchParams.get("id");
+    if (!id || !/^\d{5,20}$/.test(id)) throw new Error(PROMPTS.facebook);
+    return `https://www.facebook.com/profile.php?id=${id}`;
+  }
+  // photo.php, video.php, sharer.php, home.php…: only profile.php is a profile.
+  if (FACEBOOK_RESERVED.has(parts[0].toLowerCase()) || /\.php$/i.test(parts[0]) || parts.length > 1) throw new Error(FACEBOOK_NOT_PROFILE);
+  // Facebook usernames are at least 5 characters, which also rules out junk like /2008 from page markup.
+  if (!/^[A-Za-z0-9.]{5,80}$/.test(parts[0])) throw new Error(PROMPTS.facebook);
+  return `https://www.facebook.com/${parts[0]}`;
 }
 
 const BLOCKED_SITE_HOSTS = /(^|\.)(linkedin\.com|youtube\.com|youtu\.be|instagram\.com|facebook\.com|tiktok\.com|x\.com|twitter\.com)$/i;

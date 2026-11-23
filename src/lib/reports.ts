@@ -10,6 +10,7 @@ import type { Settings, SourceType } from "./settings";
 import { loadSettings } from "./settings-store";
 import { apifyCost, SourceError } from "./sources/apify";
 import { gatherEvidence, type EvidenceHints } from "./sources";
+import type { PlatformRead } from "./sources/types";
 import { newReportId, newReportKey, safeEqual } from "./secrets";
 
 export type ReportMode = "live" | "public" | "prefilled" | "sent";
@@ -32,7 +33,8 @@ export interface ReportRecord {
   leaseToken: string | null;
   attempts: number;
   errorCode: string | null;
-  result: (Omit<WrittenReport, "usage" | "model"> & { subjectName: string | null; thin: boolean }) | null;
+  /** platformsRead is optional so reports saved before it existed still render. */
+  result: (Omit<WrittenReport, "usage" | "model"> & { subjectName: string | null; thin: boolean; platformsRead?: PlatformRead[] }) | null;
   costs: { apifyUsd: number | null; aiUsd: number | null; model: string | null; seconds: number | null } | null;
   ctaClickedAt: string | null;
   viewedAt: string | null;
@@ -166,9 +168,9 @@ export async function runReport(id: string, settingsOverride?: Settings): Promis
   try {
     const settings = settingsOverride ?? (await loadSettings())?.settings;
     if (!settings) throw new SourceError("not_configured");
-    if (settings.source.type !== claimed.source) throw new SourceError("source_changed");
+    if (settings.source.type !== "any" && settings.source.type !== claimed.source) throw new SourceError("source_changed");
 
-    const evidence = await gatherEvidence(settings, claimed.url, claimed.hints ?? {});
+    const evidence = await gatherEvidence(settings, claimed.source, claimed.url, claimed.hints ?? {});
     runIds = evidence.apifyRunIds;
     if (evidence.strength === "none" && claimed.notes.length === 0) throw new SourceError("nothing_public");
 
@@ -190,6 +192,7 @@ export async function runReport(id: string, settingsOverride?: Settings): Promis
         sections: written.sections,
         subjectName: evidence.subject.name ?? evidence.subject.handle,
         thin: evidence.strength !== "rich",
+        platformsRead: evidence.platformsRead,
       },
       costs: { apifyUsd, aiUsd: written.usage.costUsd, model: written.model, seconds: Math.round((Date.now() - started) / 1000) },
     }));
@@ -214,6 +217,8 @@ export function publicErrorMessage(code: string | null): string {
   switch (code) {
     case "private_account":
       return "That account is private, so there's nothing public to look at. Try a public profile.";
+    case "no_public_posts":
+      return "We couldn't see any public posts on that profile. If your posts are set to Friends, paste your website or LinkedIn link instead.";
     case "not_found":
     case "nothing_public":
       return "We couldn't find enough public information at that link. Check the link and try again.";
@@ -237,6 +242,7 @@ export function ownerErrorMessage(code: string | null): string {
     not_configured: "No settings saved yet.",
     source_changed: "Your settings now read a different source than this link. Build a new report.",
     private_account: "The account is private.",
+    no_public_posts: "The Facebook profile has no public posts (likely set to Friends only).",
     not_found: "Nothing was found at that link.",
     nothing_public: "There was nothing public to read at that link.",
     timeout: "The build timed out. Try rebuilding.",
