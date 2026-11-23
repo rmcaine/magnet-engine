@@ -1,5 +1,5 @@
 import type { Settings, SourceType } from "../settings";
-import { normalizeInstagram, normalizeWebsite, normalizeYouTube } from "../source-urls";
+import { normalizeFacebook, normalizeInstagram, normalizeLinkedIn, normalizeWebsite, normalizeYouTube } from "../source-urls";
 import { readFacebook } from "./facebook";
 import { readInstagram } from "./instagram";
 import { readLinkedIn } from "./linkedin";
@@ -93,8 +93,43 @@ export async function gatherEvidence(settings: Settings, type: SourceType, url: 
     }
   }
 
-  // 4. Anything else they link (Facebook, TikTok, X, a LinkedIn company page): named, not read.
-  const others = [...channels].filter((c) => !/youtube\.com|instagram\.com/i.test(c) && c.toLowerCase() !== url.toLowerCase()).slice(0, 6);
+  // Links we read below, so they aren't also listed as "named, not read".
+  const followed = new Set<string>();
+
+  // 4. A personal LinkedIn profile they link to. Apify, a few cents; company pages are only named.
+  const linkedinRaw = settings.source.alsoReadLinkedIn && type !== "linkedin" ? pick([...channels], /linkedin\.com\/in\//i) : null;
+  const linkedin = tryNormalize(normalizeLinkedIn, linkedinRaw);
+  if (linkedinRaw && linkedin && linkedin.toLowerCase() !== url.toLowerCase()) {
+    try {
+      const li = await readLinkedIn(linkedin, Math.min(linkedinPosts, 5));
+      evidence.apifyRunIds.push(...li.apifyRunIds);
+      if (li.facts.length || li.blocks.length) {
+        evidence.facts.push(...li.facts.map((fact) => `Their LinkedIn: ${fact}`));
+        evidence.blocks.push(...li.blocks.slice(0, 2).map((block) => ({ label: `Their LinkedIn, ${block.label}`, text: block.text.slice(0, 3000) })));
+        followed.add(linkedinRaw);
+      }
+    } catch {
+      // A profile that can't be read is named below instead, never guessed at.
+    }
+  }
+
+  // 5. A Facebook profile or Page they link to. Apify, public posts only.
+  const facebookRaw = settings.source.alsoReadFacebook && type !== "facebook" ? pick([...channels], /facebook\.com\//i) : null;
+  const facebook = tryNormalize(normalizeFacebook, facebookRaw);
+  if (facebookRaw && facebook && facebook.toLowerCase() !== url.toLowerCase()) {
+    try {
+      const fb = await readFacebook(facebook, Math.min(facebookPosts, 10));
+      evidence.apifyRunIds.push(...fb.apifyRunIds);
+      evidence.facts.push(...fb.facts.map((fact) => `Their Facebook: ${fact}`));
+      evidence.blocks.push(...fb.blocks.slice(0, 1).map((block) => ({ label: `Their Facebook, ${block.label}`, text: block.text.slice(0, 3000) })));
+      followed.add(facebookRaw);
+    } catch {
+      // Friends-only or unreadable: named below instead.
+    }
+  }
+
+  // 6. Anything else they link (TikTok, X, a LinkedIn company page, a profile we couldn't read): named, not read.
+  const others = [...channels].filter((c) => !/youtube\.com|instagram\.com/i.test(c) && !followed.has(c) && c.toLowerCase() !== url.toLowerCase()).slice(0, 6);
   if (others.length) evidence.facts.push(`Other public profiles they link to: ${others.join(", ")}`);
   evidence.linkedChannels = [...channels];
 
