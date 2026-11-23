@@ -89,9 +89,12 @@ The settings (required unless marked optional):
 version: 1
 name: "magnet name, 2 to 60 characters"
 source:
-  type: website OR linkedin OR youtube OR instagram (no quotes)
+  type: website OR linkedin OR youtube OR instagram OR facebook OR any (no quotes; any = the prospect may paste any of these, and the engine works out which)
   alsoReadWebsite: true or false (optional, default true; also reads the website linked from their profile, free)
   linkedinPosts: a number from 0 to 30 (optional, LinkedIn only; how many recent posts to read; 5 is plenty and keeps cost down)
+  facebookPosts: a number from 0 to 50 (optional, default 20; how many recent public Facebook posts to read)
+  alsoReadLinkedIn: true or false (optional, default true; also reads a personal LinkedIn profile their page links to, a few cents)
+  alsoReadFacebook: true or false (optional, default true; also reads a Facebook profile their page links to, public posts only, a few cents)
 about:
   owner: "who I am and who I help, under 200 characters (the AI reads this, prospects never see it)"
   offer: "what I sell, under 600 characters (AI only, never shown)"
