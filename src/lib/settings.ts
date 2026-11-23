@@ -84,6 +84,8 @@ export const SettingsSchema = z.strictObject({
     loadingText: optionalText(200),
     reportHeadline: text(3, 140),
     reportIntro: optionalText(600),
+    /** Starts the code-written "what I looked at" line on each report. */
+    platformsLead: text(3, 140).default("Here's what I looked at:"),
     closing: optionalText(800),
   }),
   cta: z

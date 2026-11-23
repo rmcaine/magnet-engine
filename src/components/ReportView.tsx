@@ -1,6 +1,7 @@
 import type { ReportRecord } from "@/lib/reports";
 import { fillName, type Settings } from "@/lib/settings";
 import type { WrittenSection } from "@/lib/ai";
+import { formatPlatformsLine } from "@/lib/platforms";
 import { CtaButton } from "./CtaButton";
 
 /**
@@ -13,11 +14,13 @@ export function ReportView({ settings, record, path }: { settings: Settings; rec
   const result = record.result;
   if (!result) return null;
   const headline = fillName(settings.wording.reportHeadline, result.readerName);
+  const platformsLine = formatPlatformsLine(settings.wording.platformsLead, result.platformsRead ?? []);
   return (
     <main className="mx-auto w-full max-w-3xl px-5 py-10">
       <p className="text-sm font-semibold uppercase tracking-wide text-brand">{settings.name}</p>
       <h1 className="mt-2 text-3xl font-bold leading-tight sm:text-4xl">{headline}</h1>
       {settings.wording.reportIntro && <p className="mt-4 text-lg text-mute">{settings.wording.reportIntro}</p>}
+      {platformsLine && <p className="mt-4 text-lg text-mute">{platformsLine}</p>}
       {result.opening && <p className="mt-6 text-lg leading-relaxed">{result.opening}</p>}
 
       <div className="mt-10 space-y-8">

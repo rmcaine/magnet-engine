@@ -21,10 +21,17 @@ export interface Evidence {
   apifyRunIds: string[];
   /** How much there was to work with; "none" fails the report before the AI call. */
   strength: "rich" | "thin" | "none";
+  /** Every platform actually read for this report, in read order. Written by code, shown to the reader as-is. */
+  platformsRead: PlatformRead[];
+}
+
+export interface PlatformRead {
+  platform: "Website" | "Facebook" | "LinkedIn" | "YouTube" | "Instagram";
+  detail: string;
 }
 
 export function emptyEvidence(source: SourceType, url: string): Evidence {
-  return { source, url, subject: { name: null, handle: null }, facts: [], blocks: [], linkedWebsite: null, linkedChannels: [], apifyRunIds: [], strength: "none" };
+  return { source, url, subject: { name: null, handle: null }, facts: [], blocks: [], linkedWebsite: null, linkedChannels: [], apifyRunIds: [], strength: "none", platformsRead: [] };
 }
 
 export function gradeStrength(evidence: Evidence): Evidence["strength"] {

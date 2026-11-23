@@ -79,3 +79,26 @@ describe("gatherEvidence follows", () => {
     expect(out.facts.find((f) => f.startsWith("Other public profiles"))).toContain("linkedin.com/company/acme");
   });
 });
+
+describe("platforms read", () => {
+  it("lists what was actually read, in order, and tells the AI", async () => {
+    readWebsite.mockResolvedValue(ev("website", "https://jane.com", { linkedChannels: ["https://linkedin.com/in/jane-doe", "https://facebook.com/jane.doe"] }));
+    const out = await gatherEvidence(settings(), "website", "https://jane.com");
+    expect(out.platformsRead.map((p) => p.platform)).toEqual(["Website", "LinkedIn", "Facebook"]);
+    expect(out.facts).toContain("Platforms read for this report: Website, LinkedIn, Facebook (3)");
+  });
+
+  it("leaves out a follow that failed", async () => {
+    readWebsite.mockResolvedValue(ev("website", "https://jane.com", { linkedChannels: ["https://facebook.com/jane.doe"] }));
+    readFacebook.mockRejectedValue(new SourceError("apify_out_of_credit"));
+    const out = await gatherEvidence(settings(), "website", "https://jane.com");
+    expect(out.platformsRead.map((p) => p.platform)).toEqual(["Website"]);
+  });
+
+  it("says when only one platform was found", async () => {
+    readFacebook.mockResolvedValueOnce(ev("facebook", "https://www.facebook.com/pat", { blocks: [{ label: "posts", text: "- a\n- b" }] }));
+    const out = await gatherEvidence(settings(), "facebook", "https://www.facebook.com/pat");
+    expect(out.platformsRead).toEqual([{ platform: "Facebook", detail: "2 public posts" }]);
+    expect(out.facts).toContain("Only one platform was found linked. They may be on others that aren't linked from this profile.");
+  });
+});

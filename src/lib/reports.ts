@@ -10,6 +10,7 @@ import type { Settings, SourceType } from "./settings";
 import { loadSettings } from "./settings-store";
 import { apifyCost, SourceError } from "./sources/apify";
 import { gatherEvidence, type EvidenceHints } from "./sources";
+import type { PlatformRead } from "./sources/types";
 import { newReportId, newReportKey, safeEqual } from "./secrets";
 
 export type ReportMode = "live" | "public" | "prefilled" | "sent";
@@ -32,7 +33,8 @@ export interface ReportRecord {
   leaseToken: string | null;
   attempts: number;
   errorCode: string | null;
-  result: (Omit<WrittenReport, "usage" | "model"> & { subjectName: string | null; thin: boolean }) | null;
+  /** platformsRead is optional so reports saved before it existed still render. */
+  result: (Omit<WrittenReport, "usage" | "model"> & { subjectName: string | null; thin: boolean; platformsRead?: PlatformRead[] }) | null;
   costs: { apifyUsd: number | null; aiUsd: number | null; model: string | null; seconds: number | null } | null;
   ctaClickedAt: string | null;
   viewedAt: string | null;
@@ -190,6 +192,7 @@ export async function runReport(id: string, settingsOverride?: Settings): Promis
         sections: written.sections,
         subjectName: evidence.subject.name ?? evidence.subject.handle,
         thin: evidence.strength !== "rich",
+        platformsRead: evidence.platformsRead,
       },
       costs: { apifyUsd, aiUsd: written.usage.costUsd, model: written.model, seconds: Math.round((Date.now() - started) / 1000) },
     }));

@@ -3,7 +3,8 @@ import { normalizeFacebook, normalizeInstagram, normalizeLinkedIn, normalizeWebs
 import { readFacebook } from "./facebook";
 import { readInstagram } from "./instagram";
 import { readLinkedIn } from "./linkedin";
-import type { Evidence } from "./types";
+import { describeRead } from "../platforms";
+import type { Evidence, PlatformRead } from "./types";
 import { gradeStrength } from "./types";
 import { readWebsite } from "./website";
 import { readYouTube } from "./youtube";
@@ -29,8 +30,10 @@ function pick(channels: string[], test: RegExp): string | null {
 
 /**
  * Reads the main source, then follows what it links to: the website (free),
- * a YouTube channel (free) and a public Instagram profile (under a cent), and
- * names any other channels it saw. The picture of what the prospect already
+ * a YouTube channel (free), a public Instagram profile (under a cent), a
+ * personal LinkedIn profile and a Facebook profile (a few cents each, public
+ * only), and names any other channels it saw. It never searches: only links
+ * found on the pages it read. The picture of what the prospect already
  * has online is what makes a report specific instead of generic.
  */
 export async function gatherEvidence(settings: Settings, type: SourceType, url: string, hints: EvidenceHints = {}): Promise<Evidence> {
@@ -46,6 +49,14 @@ export async function gatherEvidence(settings: Settings, type: SourceType, url: 
             ? await readFacebook(url, facebookPosts)
             : await readInstagram(url);
 
+  // What was actually read, in order, for the "here's what I looked at" line.
+  const platforms: PlatformRead[] = [];
+  const note = (read: Evidence) => {
+    const item = describeRead(read);
+    if (item) platforms.push(item);
+  };
+  note(evidence);
+
   const channels = new Set<string>(evidence.linkedChannels);
 
   // 1. The website: the one the owner typed, else the one the profile links. Free, plain fetch.
@@ -58,6 +69,7 @@ export async function gatherEvidence(settings: Settings, type: SourceType, url: 
         evidence.blocks.push(...extra.blocks.slice(0, 3).map((block) => ({ label: `Their website, ${block.label}`, text: block.text.slice(0, 3000) })));
         evidence.linkedWebsite = site;
         extra.linkedChannels.forEach((c) => channels.add(c));
+        note({ ...extra, blocks: extra.blocks.slice(0, 3) });
       }
     } catch {
       // A site that won't load is not a reason to fail the report.
@@ -72,6 +84,7 @@ export async function gatherEvidence(settings: Settings, type: SourceType, url: 
       if (yt.facts.length) {
         evidence.facts.push(...yt.facts.map((fact) => `Their YouTube channel: ${fact}`));
         evidence.blocks.push(...yt.blocks.slice(0, 2).map((block) => ({ label: `Their YouTube channel, ${block.label}`, text: block.text.slice(0, 3000) })));
+        note(yt);
       }
     } catch {
       // Unreadable channel: the report simply says nothing about YouTube.
@@ -87,6 +100,7 @@ export async function gatherEvidence(settings: Settings, type: SourceType, url: 
       if (ig.facts.length) {
         evidence.facts.push(...ig.facts.map((fact) => `Their Instagram: ${fact}`));
         evidence.blocks.push(...ig.blocks.slice(0, 1).map((block) => ({ label: `Their Instagram, ${block.label}`, text: block.text.slice(0, 2000) })));
+        note(ig);
       }
     } catch {
       // Same rule: a channel that can't be read is left out, never guessed at.
@@ -107,6 +121,7 @@ export async function gatherEvidence(settings: Settings, type: SourceType, url: 
         evidence.facts.push(...li.facts.map((fact) => `Their LinkedIn: ${fact}`));
         evidence.blocks.push(...li.blocks.slice(0, 2).map((block) => ({ label: `Their LinkedIn, ${block.label}`, text: block.text.slice(0, 3000) })));
         followed.add(linkedinRaw);
+        note(li);
       }
     } catch {
       // A profile that can't be read is named below instead, never guessed at.
@@ -123,6 +138,7 @@ export async function gatherEvidence(settings: Settings, type: SourceType, url: 
       evidence.facts.push(...fb.facts.map((fact) => `Their Facebook: ${fact}`));
       evidence.blocks.push(...fb.blocks.slice(0, 1).map((block) => ({ label: `Their Facebook, ${block.label}`, text: block.text.slice(0, 3000) })));
       followed.add(facebookRaw);
+      note(fb);
     } catch {
       // Friends-only or unreadable: named below instead.
     }
@@ -132,6 +148,11 @@ export async function gatherEvidence(settings: Settings, type: SourceType, url: 
   const others = [...channels].filter((c) => !/youtube\.com|instagram\.com/i.test(c) && !followed.has(c) && c.toLowerCase() !== url.toLowerCase()).slice(0, 6);
   if (others.length) evidence.facts.push(`Other public profiles they link to: ${others.join(", ")}`);
   evidence.linkedChannels = [...channels];
+
+  evidence.platformsRead = platforms;
+  if (platforms.length) evidence.facts.push(`Platforms read for this report: ${platforms.map((p) => p.platform).join(", ")} (${platforms.length})`);
+  // We only follow posted links, so one platform may mean others exist but aren't linked.
+  if (platforms.length === 1) evidence.facts.push("Only one platform was found linked. They may be on others that aren't linked from this profile.");
 
   evidence.strength = gradeStrength(evidence);
   return evidence;
