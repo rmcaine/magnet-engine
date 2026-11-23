@@ -214,6 +214,8 @@ export function publicErrorMessage(code: string | null): string {
   switch (code) {
     case "private_account":
       return "That account is private, so there's nothing public to look at. Try a public profile.";
+    case "no_public_posts":
+      return "We couldn't see any public posts on that profile. If your posts are set to Friends, paste your website or LinkedIn link instead.";
     case "not_found":
     case "nothing_public":
       return "We couldn't find enough public information at that link. Check the link and try again.";
@@ -237,6 +239,7 @@ export function ownerErrorMessage(code: string | null): string {
     not_configured: "No settings saved yet.",
     source_changed: "Your settings now read a different source than this link. Build a new report.",
     private_account: "The account is private.",
+    no_public_posts: "The Facebook profile has no public posts (likely set to Friends only).",
     not_found: "Nothing was found at that link.",
     nothing_public: "There was nothing public to read at that link.",
     timeout: "The build timed out. Try rebuilding.",

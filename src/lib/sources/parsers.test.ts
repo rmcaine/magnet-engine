@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { summarizeFacebookPosts } from "./facebook";
 import { summarizeInstagram } from "./instagram";
 import { summarizePosts, summarizeProfile } from "./linkedin";
 import { detectSignals, htmlToText } from "./website";
@@ -113,5 +114,23 @@ describe("profileLinks", () => {
   it("returns nothing for a profile with no links", async () => {
     const { profileLinks } = await import("./linkedin");
     expect(profileLinks({ about: "Dermatologist in Franklin." })).toEqual({ website: null, channels: [] });
+  });
+});
+
+describe("facebook summarizeFacebookPosts", () => {
+  // Invented posts: the repo is public, so never real people's posts.
+  const items = [
+    { text: "Sold my 100th quilt today. Mrs. Ellis bought it for her granddaughter.", time: "2026-11-20T15:00:00Z", likes: 12, comments: 3, url: "https://www.facebook.com/x/posts/1", user: { name: "Pat Example" } },
+    { text: "", time: "2026-11-19T15:00:00Z", likes: 4, url: "https://www.facebook.com/x/posts/2" },
+    { text: "AI wrote it for you? 5 things I check. 👇", time: "2026-11-18T15:00:00Z", likes: 1, comments: 6 },
+  ];
+  it("keeps posts with text, newest first, with date and counts", () => {
+    const out = summarizeFacebookPosts(items);
+    expect(out.name).toBe("Pat Example");
+    expect(out.lines).toHaveLength(2);
+    expect(out.lines[0]).toMatch(/^- Nov 20, 2026, 12 reactions, 3 comments: Sold my 100th quilt/);
+  });
+  it("returns nothing for no items", () => {
+    expect(summarizeFacebookPosts([])).toEqual({ name: null, lines: [] });
   });
 });
